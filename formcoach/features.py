@@ -130,3 +130,10 @@ def frame_features(points: np.ndarray) -> dict[str, float]:
         "ankle_angle": float(joint_angle(xy[knee], xy[ankle], xy[foot])),  # меняется, когда встаёшь на носки
         "heel_above_toe": float((xy[foot, 1] - xy[heel, 1]) / shin),  # >0 — пятка выше носка
     }
+
+
+def feet_visible(points: np.ndarray, min_visibility: float = FOOT_MIN_VISIBILITY) -> bool:
+    """Видны ли надёжно пятка и носок хотя бы одной ноги на кадре."""
+    left = points[[P.L_HEEL, P.L_FOOT], 3].min()
+    right = points[[P.R_HEEL, P.R_FOOT], 3].min()
+    return bool(max(left, right) >= min_visibility)

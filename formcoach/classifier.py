@@ -28,7 +28,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier, export_text
 
-from .features import FRAME_FEATURES
+from .features import FRAME_FEATURES, feet_visible, frame_features
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "processed"
@@ -166,6 +166,30 @@ class FormClassifier:
             raise ValueError("В признаках есть пропуски — кадр распознан плохо.")
         p = dict(zip(model.classes_, model.predict_proba(x)[0]))
         return {c: (float(p[c]) if c in p else None) for c in CLASSES}
+
+
+@dataclass
+class RepVerdict:
+    """Мнение модели об одном повторении."""
+
+    probs: dict[str, float | None]  # None — класс не оценивался (пятки без стоп)
+    label: str  # самый вероятный класс
+    no_feet: bool  # использована запасная модель (стопы не видны)
+    frames_used: int
+
+
+def classify_rep(clf: FormClassifier, landmarks: np.ndarray, bottom: int, window: int = 3) -> RepVerdict | None:
+    """Оцениваем кадры bottom-window..bottom+window и усредняем вероятности —
+    так один шумный кадр не испортит ответ. None, если человек ни на одном кадре не найден."""
+    frames = [t for t in range(bottom - window, bottom + window + 1) if 0 <= t < len(landmarks) and not np.isnan(landmarks[t, 0, 0])]
+    if not frames:
+        return None
+    # запасную модель берём, если стопы плохо видны на большинстве кадров
+    no_feet = sum(feet_visible(landmarks[t]) for t in frames) < len(frames) / 2
+    probs = [clf.predict_proba(frame_features(landmarks[t]), feet_visible=not no_feet) for t in frames]
+    avg = {c: (None if probs[0][c] is None else float(np.mean([p[c] for p in probs]))) for c in CLASSES}
+    label = max((c for c in CLASSES if avg[c] is not None), key=lambda c: avg[c])
+    return RepVerdict(avg, label, no_feet, len(frames))
 
 
 def main():

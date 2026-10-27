@@ -1,6 +1,7 @@
 """FormCoach AI — веб-интерфейс. Запуск: streamlit run app.py"""
 
 import hashlib
+import json
 import tempfile
 from pathlib import Path
 
@@ -11,6 +12,7 @@ import streamlit as st
 
 from formcoach import synthetic as syn
 from formcoach.agent import ERROR_TEXT, SquatRules
+from formcoach.classifier import CLASS_RU, DATA as ML_DATA, FormClassifier
 from formcoach.features import squat_features
 from formcoach.hmm import STATE_NAMES, squat_hmm
 from formcoach.pipeline import analyze_squat
@@ -34,6 +36,20 @@ def cached_pose(data: bytes, suffix: str) -> tuple[np.ndarray, float, str]:
     path.write_bytes(data)
     seq = extract_pose(path)
     return seq.landmarks, seq.fps, str(path)
+
+
+@st.cache_resource
+def load_classifier() -> FormClassifier | None:
+    return FormClassifier.load()
+
+
+def ml_cell(v) -> str:
+    """Мнение модели для таблицы: "⚠️ спина 87%" или "✅ правильно 95%"."""
+    if v is None:
+        return "—"
+    icon = "✅" if v.label == "good" else "⚠️"
+    tag = " (без стоп)" if v.no_feet else ""
+    return f"{icon} {CLASS_RU[v.label]} {v.probs[v.label]:.0%}{tag}"
 
 
 # ---------------- боковая панель: вход и параметры ----------------
@@ -90,7 +106,10 @@ else:
     features = syn.synthetic_session(plan, fps=fps)
 
 try:
-    a = analyze_squat(features, fps, dict(top_angle=top_angle, bottom_angle=bottom_angle, stay_prob=stay_prob), rules)
+    a = analyze_squat(
+        features, fps, dict(top_angle=top_angle, bottom_angle=bottom_angle, stay_prob=stay_prob), rules,
+        landmarks=landmarks, classifier=load_classifier(),
+    )
 except ValueError as e:
     st.error(str(e))
     st.stop()
@@ -154,13 +173,23 @@ with left:
                         "Макс. наклон, °": round(r.max_lean),
                         "Подъём пятки": "—" if np.isnan(r.max_heel) else round(r.max_heel, 2),
                         "Время, с": round(r.seconds, 1),
+                        "ML-модель": ml_cell(v),
                     }
-                    for r in a.reps
+                    for r, v in zip(a.reps, a.ml)
                 ]
             ),
             hide_index=True,
             width="stretch",
         )
+        if video_path is None:
+            st.caption("ML-модель оценивает реальные кадры, поэтому в демо-режиме её колонка пустая.")
+        elif load_classifier() is None:
+            st.caption("ML-модель не обучена: запусти `python -m formcoach.classifier` (см. README).")
+        else:
+            st.caption(
+                "«Итог» — правила агента (неделя 1). «ML-модель» — классификатор (неделя 8), обученный на чужих фото: "
+                "находит грубые ошибки спины и пяток, но не глубину. «Без стоп» — стопы не видны, пятки не оцениваются."
+            )
 with right:
     st.subheader("Подсказки тренера (агент)")
     for f in a.feedback:
@@ -196,9 +225,24 @@ with st.expander("Как это работает: 3 AI-темы"):
 получает восприятие (фаза + углы), обновляет внутреннее состояние (минимальный угол, максимальный наклон
 в текущем повторении) и по правилам «условие → действие» выдаёт подсказки.
 
-**3. Неделя 8 — Classical ML** *(в разработке)*: классификатор правильной/неправильной техники с метриками Accuracy/F1.
+**3. Неделя 8 — Classical ML.** По 7 признакам позы в нижней точке (углы колена, таза, бедра, голени,
+стопы, наклон, подъём пятки) модель относит повторение к классу «правильно», «спина» или «пятки».
+Обучена на открытом датасете (Binus University, Zenodo 17558630, ~3700 фото сбоку, ~6 человек).
+Кадры одного видео не попадают одновременно в обучение и проверку (GroupKFold по клипам).
+Если стопы не видны, используется запасная модель только по верху тела.
 """
     )
+    report_path = ML_DATA / "classifier_report.json"
+    if report_path.exists():
+        rep = json.loads(report_path.read_text())
+        st.markdown("**Сравнение моделей** (macro-F1; test — другие люди, которых модель не видела):")
+        st.dataframe(
+            pd.DataFrame(
+                [{"Модель": k, "F1 (новые клипы)": round(v["cv"]["f1_macro"], 3), "F1 (test)": round(v["test"]["f1_macro"], 3)}
+                 for k, v in rep["results"].items()]
+            ),
+            hide_index=True,
+        )
     hmm = squat_hmm(top_angle, bottom_angle, stay_prob)
     st.markdown("**Матрица переходов HMM** (строка — откуда, столбец — куда):")
     st.dataframe(pd.DataFrame(hmm.trans, index=STATE_NAMES, columns=STATE_NAMES).round(3))
