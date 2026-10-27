@@ -18,7 +18,7 @@ from formcoach.pose import PoseSequence, draw_skeleton, extract_pose, read_frame
 
 # Цвета фаз — первые 4 слота проверенной категориальной палитры
 PHASE_COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]
-LEVEL_ICON = {"ok": "✅", "warn": "⚠️", "danger": "⛔"}
+LEVEL_ICON = {"ok": "✅", "warn": "⚠️", "danger": "⛔", "info": "ℹ️"}
 ERROR_SHORT = {"shallow": "неглубоко", "lean": "наклон", "heels": "пятки", "fast": "быстро"}
 
 st.set_page_config(page_title="FormCoach AI", page_icon="🏋️", layout="wide")
@@ -53,7 +53,7 @@ with st.sidebar:
     rules = SquatRules(
         min_depth_angle=st.slider("Глубина: колено не больше, °", 70, 140, 100),
         max_torso_lean=st.slider("Макс. наклон корпуса, °", 20, 70, 45),
-        max_heel_lift=st.slider("Макс. подъём пятки (доля голени)", 0.02, 0.30, 0.08, 0.01),
+        max_heel_lift=st.slider("Макс. подъём пятки (доля голени)", 0.05, 0.50, 0.20, 0.01, help="«—» в таблице: стопу было плохо видно, пятки не оценивались."),
         min_rep_seconds=st.slider("Мин. длительность повторения, с", 0.3, 3.0, 1.0, 0.1),
     )
 
@@ -150,7 +150,7 @@ with left:
                         "Итог": "✅ хорошо" if r.good else "⚠️ " + ", ".join(ERROR_SHORT[e] for e in r.errors),
                         "Мин. угол колена, °": round(r.min_knee),
                         "Макс. наклон, °": round(r.max_lean),
-                        "Подъём пятки": round(r.max_heel, 2),
+                        "Подъём пятки": "—" if np.isnan(r.max_heel) else round(r.max_heel, 2),
                         "Время, с": round(r.seconds, 1),
                     }
                     for r in a.reps

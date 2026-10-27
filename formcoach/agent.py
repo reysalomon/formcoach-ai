@@ -21,6 +21,8 @@ PEAS:
 
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from .hmm import BOTTOM, TOP
 
 # Коды ошибок — потом они же станут метками для классификатора (неделя 8)
@@ -37,9 +39,12 @@ class SquatRules:
     min_depth_angle: float = 100.0  # колено должно согнуться хотя бы до этого угла
     max_torso_lean: float = 45.0  # максимально допустимый наклон корпуса, градусы
     danger_extra_lean: float = 15.0  # на сколько градусов сверх порога — уже опасно для спины
-    max_heel_lift: float = 0.08  # подъём пятки, доля длины голени
+    max_heel_lift: float = 0.2  # подъём пятки, доля длины голени
     min_rep_seconds: float = 1.0  # быстрее — значит "падает" вниз без контроля
-    min_rep_frames: int = 5  # короче — это шум, а не повторение
+    min_count_seconds: float = 0.4  # короче — это шум, а не повторение
+    min_knee_dip: float = 30.0  # колено должно согнуться хотя бы на столько от положения стоя
+    min_hip_drop: float = 0.2  # таз должен опуститься хотя бы на 0.2 длины голени (иначе — ходьба)
+    max_feet_shift: float = 0.3  # стопы не должны сместиться больше чем на 0.3 голени (иначе — шаг)
 
 
 @dataclass
@@ -49,12 +54,15 @@ class Percept:
     knee_angle: float
     torso_lean: float
     heel_lift: float
+    hip_y: float = 0.0
+    ankle_lx: float = 0.0
+    ankle_rx: float = 0.0
 
 
 @dataclass
 class Feedback:
     frame: int
-    level: str  # "ok" | "warn" | "danger"
+    level: str  # "ok" | "warn" | "danger" | "info"
     message: str
     rep: int | None = None
 
@@ -67,7 +75,7 @@ class RepReport:
     bottom_frame: int
     min_knee: float
     max_lean: float
-    max_heel: float
+    max_heel: float  # NaN — стопу было плохо видно, пятки не оценивали
     seconds: float
     reached_bottom: bool
     errors: list[str] = field(default_factory=list)
@@ -84,6 +92,8 @@ class SquatCoachAgent:
         self.reps: list[RepReport] = []
         self._in_rep = False
         self._warned: set[str] = set()  # чтобы не повторять одну подсказку 30 раз за повторение
+        self._standing_angle = 0.0  # самый прямой угол колена, пока человек стоял перед повторением
+        self._standing_hip = np.inf  # самое высокое положение таза стоя (y вниз, поэтому минимум)
 
     # ---------- модель мира ----------
 
@@ -95,13 +105,16 @@ class SquatCoachAgent:
         self._max_heel = p.heel_lift
         self._reached_bottom = False
         self._warned = set()
+        self._hip_low = p.hip_y
+        self._feet_start = (p.ankle_lx, p.ankle_rx)
 
     def _update_rep(self, p: Percept):
         if p.knee_angle < self._min_knee:
             self._min_knee, self._bottom_frame = p.knee_angle, p.frame
         self._max_lean = max(self._max_lean, p.torso_lean)
-        self._max_heel = max(self._max_heel, p.heel_lift)
+        self._max_heel = np.fmax(self._max_heel, p.heel_lift)  # fmax пропускает NaN
         self._reached_bottom |= p.phase == BOTTOM
+        self._hip_low = np.fmax(self._hip_low, p.hip_y)  # y вниз: больше = ниже
 
     # ---------- цикл агента: восприятие -> обновление состояния -> действие ----------
 
@@ -110,7 +123,10 @@ class SquatCoachAgent:
         r = self.rules
 
         if not self._in_rep:
-            if p.phase != TOP:
+            if p.phase == TOP:
+                self._standing_angle = max(self._standing_angle, p.knee_angle)
+                self._standing_hip = np.fmin(self._standing_hip, p.hip_y)
+            else:
                 self._start_rep(p)
             return actions
 
@@ -130,8 +146,18 @@ class SquatCoachAgent:
         # Повторение закончилось — вернулись в ВЕРХ
         if p.phase == TOP:
             self._in_rep = False
-            if p.frame - self._start >= r.min_rep_frames:
-                actions.append(self._finish_rep(p.frame))
+            long_enough = (p.frame - self._start) / self.fps >= r.min_count_seconds
+            deep_enough = self._standing_angle - self._min_knee >= r.min_knee_dip
+            if long_enough and deep_enough:  # иначе это дрожание/шум, а не присед
+                hip_drop = self._hip_low - self._standing_hip
+                feet_shift = max(abs(p.ankle_lx - self._feet_start[0]), abs(p.ankle_rx - self._feet_start[1]))
+                if hip_drop < r.min_hip_drop or feet_shift > r.max_feet_shift:
+                    # колено сгибалось, но таз не опускался / стопы переступили — это шаги
+                    actions.append(Feedback(p.frame, "info", "Похоже на ходьбу, не засчитываю"))
+                else:
+                    actions.append(self._finish_rep(p.frame))
+            # начинаем заново следить за положением стоя
+            self._standing_angle, self._standing_hip = p.knee_angle, p.hip_y
         return actions
 
     def _finish_rep(self, end: int) -> Feedback:
@@ -174,6 +200,9 @@ class SquatCoachAgent:
 def percepts_from(features: dict, path) -> list[Percept]:
     """Собирает восприятия агента из признаков и фаз HMM."""
     return [
-        Percept(t, int(path[t]), float(features["knee_angle"][t]), float(features["torso_lean"][t]), float(features["heel_lift"][t]))
+        Percept(
+            t, int(path[t]),
+            *(float(features[k][t]) for k in ("knee_angle", "torso_lean", "heel_lift", "hip_y", "ankle_lx", "ankle_rx")),
+        )
         for t in range(len(path))
     ]

@@ -7,6 +7,8 @@ import numpy as np
 
 from . import pose as P
 
+FOOT_MIN_VISIBILITY = 0.5  # ниже — точки стопы считаем ненадёжными
+
 
 def joint_angle(a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndarray:
     """Угол ABC в вершине b, в градусах (0..180).
@@ -53,6 +55,10 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
       hip_angle   — угол в тазобедренном суставе
       torso_lean  — наклон корпуса от вертикали
       knee_vel    — скорость изменения угла колена, град/сек (<0 — опускается)
+      heel_lift   — подъём пятки, доля голени (NaN — стопу плохо видно)
+      hip_y       — высота таза, в длинах голени (ось y вниз: больше = ниже)
+      ankle_lx, ankle_rx — положение стоп по горизонтали, в длинах голени
+    hip_y и ankle_* нужны, чтобы отличить присед от ходьбы.
     """
     lm = seq.landmarks
     vis_left = np.nanmean(lm[:, [P.L_HIP, P.L_KNEE, P.L_ANKLE], 3])
@@ -76,6 +82,10 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
     shin = np.nanmedian(np.linalg.norm(xy[:, knee] - xy[:, ankle], axis=-1))
     heel_above_toe = (xy[:, foot, 1] - xy[:, heel, 1]) / max(shin, 1e-6)
     heel_lift = smooth(heel_above_toe - np.nanmedian(heel_above_toe), smooth_window)
+    # Стопы MediaPipe видит хуже всего: в нижней точке их часто "теряет", и точки
+    # пятки/носка прыгают. Где стопу видно плохо — не оцениваем (NaN), а не врём.
+    foot_vis = smooth(np.nanmin(lm[:, [heel, foot], 3], axis=1), smooth_window)
+    heel_lift[foot_vis < FOOT_MIN_VISIBILITY] = np.nan
 
     return {
         "knee_angle": knee_angle,
@@ -83,4 +93,7 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
         "torso_lean": torso_lean,
         "knee_vel": knee_vel,
         "heel_lift": heel_lift,
+        "hip_y": smooth((xy[:, P.L_HIP, 1] + xy[:, P.R_HIP, 1]) / 2, smooth_window) / shin,
+        "ankle_lx": smooth(xy[:, P.L_ANKLE, 0], smooth_window) / shin,
+        "ankle_rx": smooth(xy[:, P.R_ANKLE, 0], smooth_window) / shin,
     }

@@ -4,7 +4,7 @@ import pytest
 from formcoach.agent import Percept, SquatCoachAgent, SquatRules
 from formcoach.hmm import BOTTOM, DOWN, TOP, UP, segment_reps
 from formcoach.pipeline import analyze_squat
-from formcoach.synthetic import GOOD, HEELS_UP, LEANING, SHALLOW, TOO_FAST, RepSpec, synthetic_session
+from formcoach.synthetic import GOOD, HEELS_UP, LEANING, SHALLOW, TOO_FAST, WALKING, RepSpec, synthetic_session
 
 FPS = 30.0
 
@@ -57,7 +57,7 @@ def test_agent_agrees_with_hmm_segmentation():
 
 
 def test_noise_blip_is_not_a_rep():
-    agent = SquatCoachAgent(SquatRules(min_rep_frames=5))
+    agent = SquatCoachAgent()
     phases = [TOP] * 10 + [DOWN, UP] + [TOP] * 10
     for t, ph in enumerate(phases):
         agent.step(Percept(t, ph, 160.0, 10.0, 0.0))
@@ -74,3 +74,24 @@ def test_unfinished_rep_not_counted():
 def test_too_short_input_rejected():
     with pytest.raises(ValueError):
         analyze_squat({"knee_angle": np.array([160.0]), "knee_vel": np.array([0.0])}, FPS)
+
+
+def test_tiny_dip_is_not_a_rep():
+    """Колено согнулось всего на 15° — это не присед (так было в начале реального видео)."""
+    a = run([RepSpec(depth=150)])
+    assert a.reps == []
+
+
+def test_heels_not_judged_when_feet_invisible():
+    f = synthetic_session([HEELS_UP], fps=FPS)
+    f["heel_lift"][:] = np.nan  # стопы не видно
+    a = analyze_squat(f, FPS)
+    assert len(a.reps) == 1 and a.reps[0].good
+    assert np.isnan(a.reps[0].max_heel)
+
+
+def test_walking_is_not_a_rep():
+    """Колено при шагах сгибается, но таз не опускается и стопы смещаются — не повторение."""
+    a = run([GOOD, WALKING, GOOD])
+    assert len(a.reps) == 2 and all(r.good for r in a.reps)
+    assert any(f.level == "info" and "ходьб" in f.message for f in a.feedback)
