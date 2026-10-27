@@ -122,3 +122,31 @@ def draw_skeleton(rgb: np.ndarray, points: np.ndarray, color=(42, 120, 214)) -> 
     for i in {i for pair in SKELETON for i in pair}:
         cv2.circle(out, tuple(points[i, :2].astype(int)), thick * 2, (255, 255, 255), -1, cv2.LINE_AA)
     return out
+
+
+class ImagePoseDetector:
+    """Поза на отдельных фото (режим IMAGE) — для датасета из картинок.
+
+    Использование:
+        with ImagePoseDetector() as det:
+            points = det.detect(rgb)  # (33, 4) или None, если человека нет
+    """
+
+    def __enter__(self):
+        options = vision.PoseLandmarkerOptions(
+            base_options=BaseOptions(model_asset_path=str(MODEL_PATH)),
+            running_mode=vision.RunningMode.IMAGE,
+            num_poses=1,
+        )
+        self._landmarker = vision.PoseLandmarker.create_from_options(options)
+        return self
+
+    def __exit__(self, *exc):
+        self._landmarker.close()
+
+    def detect(self, rgb: np.ndarray) -> np.ndarray | None:
+        h, w = rgb.shape[:2]
+        result = self._landmarker.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=np.ascontiguousarray(rgb)))
+        if not result.pose_landmarks:
+            return None
+        return np.array([[p.x * w, p.y * h, p.z * w, p.visibility] for p in result.pose_landmarks[0]])

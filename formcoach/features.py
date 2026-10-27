@@ -103,3 +103,30 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
         "ankle_lx": smooth(xy[:, P.L_ANKLE, 0], smooth_window) / shin,
         "ankle_rx": smooth(xy[:, P.R_ANKLE, 0], smooth_window) / shin,
     }
+
+
+# Признаки одного кадра — входы классификатора (неделя 8).
+# Все — углы или отношения длин, поэтому не зависят от размера фото и расстояния до камеры.
+FRAME_FEATURES = ["knee_angle", "hip_angle", "torso_lean", "thigh_angle", "shin_lean", "ankle_angle", "heel_above_toe"]
+
+
+def frame_features(points: np.ndarray) -> dict[str, float]:
+    """Признаки позы на одном кадре. points: (33, 4) из MediaPipe (x, y в пикселях)."""
+    left = np.mean(points[[P.L_HIP, P.L_KNEE, P.L_ANKLE, P.L_HEEL, P.L_FOOT], 3])
+    right = np.mean(points[[P.R_HIP, P.R_KNEE, P.R_ANKLE, P.R_HEEL, P.R_FOOT], 3])
+    if left >= right:
+        sh, hip, knee, ankle, heel, foot = P.L_SHOULDER, P.L_HIP, P.L_KNEE, P.L_ANKLE, P.L_HEEL, P.L_FOOT
+    else:
+        sh, hip, knee, ankle, heel, foot = P.R_SHOULDER, P.R_HIP, P.R_KNEE, P.R_ANKLE, P.R_HEEL, P.R_FOOT
+    xy = points[:, :2]
+    thigh = xy[knee] - xy[hip]
+    shin = max(float(np.linalg.norm(xy[knee] - xy[ankle])), 1e-6)
+    return {
+        "knee_angle": float(joint_angle(xy[hip], xy[knee], xy[ankle])),
+        "hip_angle": float(joint_angle(xy[sh], xy[hip], xy[knee])),
+        "torso_lean": float(lean_from_vertical(xy[sh], xy[hip])),
+        "thigh_angle": float(np.degrees(np.arctan2(thigh[1], abs(thigh[0])))),
+        "shin_lean": float(lean_from_vertical(xy[knee], xy[ankle])),  # насколько колено ушло вперёд
+        "ankle_angle": float(joint_angle(xy[knee], xy[ankle], xy[foot])),  # меняется, когда встаёшь на носки
+        "heel_above_toe": float((xy[foot, 1] - xy[heel, 1]) / shin),  # >0 — пятка выше носка
+    }
