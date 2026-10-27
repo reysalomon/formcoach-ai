@@ -20,6 +20,7 @@ L_SHOULDER, R_SHOULDER = 11, 12
 L_HIP, R_HIP = 23, 24
 L_KNEE, R_KNEE = 25, 26
 L_ANKLE, R_ANKLE = 27, 28
+L_HEEL, R_HEEL = 29, 30
 L_FOOT, R_FOOT = 31, 32
 
 
@@ -90,3 +91,34 @@ def extract_pose(video_path: str | Path, max_frames: int | None = None) -> PoseS
     if not frames:
         raise ValueError("В видео нет ни одного кадра.")
     return PoseSequence(landmarks=np.asarray(frames, dtype=float), fps=float(fps))
+
+
+# Линии скелета для рисования: пары номеров точек
+SKELETON = [
+    (L_SHOULDER, R_SHOULDER), (L_HIP, R_HIP),
+    (L_SHOULDER, L_HIP), (L_HIP, L_KNEE), (L_KNEE, L_ANKLE), (L_ANKLE, L_HEEL), (L_HEEL, L_FOOT), (L_ANKLE, L_FOOT),
+    (R_SHOULDER, R_HIP), (R_HIP, R_KNEE), (R_KNEE, R_ANKLE), (R_ANKLE, R_HEEL), (R_HEEL, R_FOOT), (R_ANKLE, R_FOOT),
+]
+
+
+def read_frame(video_path: str | Path, index: int) -> np.ndarray | None:
+    """Достаёт один кадр видео (в RGB) по номеру; None, если кадра нет."""
+    cap = cv2.VideoCapture(str(video_path))
+    cap.set(cv2.CAP_PROP_POS_FRAMES, index)
+    ok, frame = cap.read()
+    cap.release()
+    return cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) if ok else None
+
+
+def draw_skeleton(rgb: np.ndarray, points: np.ndarray, color=(42, 120, 214)) -> np.ndarray:
+    """Рисует скелет поверх кадра. points: (33, 4) — одна строка из PoseSequence.landmarks."""
+    out = rgb.copy()
+    if np.isnan(points[0, 0]):
+        return out
+    thick = max(2, out.shape[1] // 300)
+    for a, b in SKELETON:
+        pa, pb = points[a, :2].astype(int), points[b, :2].astype(int)
+        cv2.line(out, tuple(pa), tuple(pb), color, thick, cv2.LINE_AA)
+    for i in {i for pair in SKELETON for i in pair}:
+        cv2.circle(out, tuple(points[i, :2].astype(int)), thick * 2, (255, 255, 255), -1, cv2.LINE_AA)
+    return out

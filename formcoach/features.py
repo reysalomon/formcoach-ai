@@ -60,9 +60,9 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
     if np.isnan(vis_left) and np.isnan(vis_right):
         raise ValueError("Человек не найден ни на одном кадре.")
     if np.nan_to_num(vis_left) >= np.nan_to_num(vis_right):
-        sh, hip, knee, ankle = P.L_SHOULDER, P.L_HIP, P.L_KNEE, P.L_ANKLE
+        sh, hip, knee, ankle, heel, foot = P.L_SHOULDER, P.L_HIP, P.L_KNEE, P.L_ANKLE, P.L_HEEL, P.L_FOOT
     else:
-        sh, hip, knee, ankle = P.R_SHOULDER, P.R_HIP, P.R_KNEE, P.R_ANKLE
+        sh, hip, knee, ankle, heel, foot = P.R_SHOULDER, P.R_HIP, P.R_KNEE, P.R_ANKLE, P.R_HEEL, P.R_FOOT
 
     xy = lm[:, :, :2]
     knee_angle = smooth(joint_angle(xy[:, hip], xy[:, knee], xy[:, ankle]), smooth_window)
@@ -70,9 +70,17 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
     torso_lean = smooth(lean_from_vertical(xy[:, sh], xy[:, hip]), smooth_window)
     knee_vel = np.gradient(knee_angle) * seq.fps
 
+    # Подъём пятки: насколько пятка выше носка, в долях длины голени
+    # (делим на голень, чтобы не зависеть от расстояния до камеры).
+    # Вычитаем медиану: большую часть видео пятки стоят на полу — это "ноль".
+    shin = np.nanmedian(np.linalg.norm(xy[:, knee] - xy[:, ankle], axis=-1))
+    heel_above_toe = (xy[:, foot, 1] - xy[:, heel, 1]) / max(shin, 1e-6)
+    heel_lift = smooth(heel_above_toe - np.nanmedian(heel_above_toe), smooth_window)
+
     return {
         "knee_angle": knee_angle,
         "hip_angle": hip_angle,
         "torso_lean": torso_lean,
         "knee_vel": knee_vel,
+        "heel_lift": heel_lift,
     }
