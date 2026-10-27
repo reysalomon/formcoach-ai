@@ -89,7 +89,7 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
     heel_lift = smooth(heel_above_toe - np.nanmedian(heel_above_toe), smooth_window)
     # Стопы MediaPipe видит хуже всего: в нижней точке их часто "теряет", и точки
     # пятки/носка прыгают. Где стопу видно плохо — не оцениваем (NaN), а не врём.
-    foot_vis = smooth(np.nanmin(lm[:, [heel, foot], 3], axis=1), smooth_window)
+    foot_vis = smooth(np.fmin(lm[:, heel, 3], lm[:, foot, 3]), smooth_window)  # fmin: без предупреждений на NaN
     heel_lift[foot_vis < FOOT_MIN_VISIBILITY] = np.nan
 
     return {
