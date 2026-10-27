@@ -27,7 +27,7 @@ from .hmm import BOTTOM, TOP
 
 # Коды ошибок — потом они же станут метками для классификатора (неделя 8)
 ERROR_TEXT = {
-    "shallow": "Неглубокий присед — опустись ниже (бедро хотя бы параллельно полу)",
+    "shallow": "Неглубокий присед — опустись ниже (бедро ближе к параллели с полом)",
     "lean": "Сильный наклон корпуса вперёд — держи грудь выше",
     "heels": "Пятки отрываются от пола — переноси вес на всю стопу",
     "fast": "Слишком быстро — опускайся подконтрольно",
@@ -36,11 +36,11 @@ ERROR_TEXT = {
 
 @dataclass
 class SquatRules:
-    min_depth_angle: float = 100.0  # колено должно согнуться хотя бы до этого угла
-    max_torso_lean: float = 45.0  # максимально допустимый наклон корпуса, градусы
+    max_thigh_angle: float = 35.0  # глубина: бедро должно опуститься хотя бы до 35° к полу (0° = параллель)
+    max_torso_lean: float = 30.0  # максимально допустимый наклон корпуса, градусы
     danger_extra_lean: float = 15.0  # на сколько градусов сверх порога — уже опасно для спины
     max_heel_lift: float = 0.2  # подъём пятки, доля длины голени
-    min_rep_seconds: float = 1.0  # быстрее — значит "падает" вниз без контроля
+    min_rep_seconds: float = 0.8  # быстрее — значит "падает" вниз без контроля
     min_count_seconds: float = 0.4  # короче — это шум, а не повторение
     min_knee_dip: float = 30.0  # колено должно согнуться хотя бы на столько от положения стоя
     min_hip_drop: float = 0.2  # таз должен опуститься хотя бы на 0.2 длины голени (иначе — ходьба)
@@ -54,6 +54,7 @@ class Percept:
     knee_angle: float
     torso_lean: float
     heel_lift: float
+    thigh_angle: float = 0.0
     hip_y: float = 0.0
     ankle_lx: float = 0.0
     ankle_rx: float = 0.0
@@ -74,6 +75,7 @@ class RepReport:
     end: int
     bottom_frame: int
     min_knee: float
+    min_thigh: float  # самый низкий угол бедра к полу
     max_lean: float
     max_heel: float  # NaN — стопу было плохо видно, пятки не оценивали
     seconds: float
@@ -102,6 +104,7 @@ class SquatCoachAgent:
         self._start = p.frame
         self._min_knee, self._bottom_frame = p.knee_angle, p.frame
         self._max_lean = p.torso_lean
+        self._min_thigh = p.thigh_angle
         self._max_heel = p.heel_lift
         self._reached_bottom = False
         self._warned = set()
@@ -112,6 +115,7 @@ class SquatCoachAgent:
         if p.knee_angle < self._min_knee:
             self._min_knee, self._bottom_frame = p.knee_angle, p.frame
         self._max_lean = max(self._max_lean, p.torso_lean)
+        self._min_thigh = min(self._min_thigh, p.thigh_angle)
         self._max_heel = np.fmax(self._max_heel, p.heel_lift)  # fmax пропускает NaN
         self._reached_bottom |= p.phase == BOTTOM
         self._hip_low = np.fmax(self._hip_low, p.hip_y)  # y вниз: больше = ниже
@@ -168,12 +172,13 @@ class SquatCoachAgent:
             end=end,
             bottom_frame=self._bottom_frame,
             min_knee=float(self._min_knee),
+            min_thigh=float(self._min_thigh),
             max_lean=float(self._max_lean),
             max_heel=float(self._max_heel),
             seconds=(end - self._start) / self.fps,
             reached_bottom=self._reached_bottom,
         )
-        if rep.min_knee > r.min_depth_angle:
+        if rep.min_thigh > r.max_thigh_angle:
             rep.errors.append("shallow")
         if rep.max_lean > r.max_torso_lean:
             rep.errors.append("lean")
@@ -202,7 +207,7 @@ def percepts_from(features: dict, path) -> list[Percept]:
     return [
         Percept(
             t, int(path[t]),
-            *(float(features[k][t]) for k in ("knee_angle", "torso_lean", "heel_lift", "hip_y", "ankle_lx", "ankle_rx")),
+            *(float(features[k][t]) for k in ("knee_angle", "torso_lean", "heel_lift", "thigh_angle", "hip_y", "ankle_lx", "ankle_rx")),
         )
         for t in range(len(path))
     ]

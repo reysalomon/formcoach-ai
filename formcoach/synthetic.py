@@ -14,7 +14,7 @@ from .features import smooth
 @dataclass
 class RepSpec:
     depth: float = 85.0  # минимальный угол колена
-    lean: float = 30.0  # максимальный наклон корпуса в нижней точке
+    lean: float = 20.0  # максимальный наклон корпуса в нижней точке
     heel: float = 0.0  # максимальный подъём пятки (доля голени)
     seconds: float = 2.0  # длительность повторения
     walk: bool = False  # не присед, а шаги: таз не опускается, стопы смещаются
@@ -22,7 +22,7 @@ class RepSpec:
 
 GOOD = RepSpec()
 SHALLOW = RepSpec(depth=130)
-LEANING = RepSpec(lean=55)
+LEANING = RepSpec(lean=40)
 HEELS_UP = RepSpec(heel=0.2)
 TOO_FAST = RepSpec(seconds=0.6)
 WALKING = RepSpec(depth=130, seconds=0.8, walk=True)
@@ -35,6 +35,7 @@ def synthetic_session(
     rng = np.random.default_rng(seed)
     n_pause = int(pause_sec * fps)
     knee, lean, heel = [np.full(n_pause, top)], [np.full(n_pause, 10.0)], [np.zeros(n_pause)]
+    thigh = [np.full(n_pause, 85.0)]
     hip, feet = [np.full(n_pause, 4.0)], [np.zeros(n_pause)]
     foot_x = 0.0
     for r in reps:
@@ -43,6 +44,8 @@ def synthetic_session(
         knee += [top - (top - r.depth) * k, np.full(n_pause, top)]
         lean += [10 + (r.lean - 10) * k, np.full(n_pause, 10.0)]
         heel += [r.heel * k, np.zeros(n_pause)]
+        # бедро: 85° стоя; при колене 85° — почти параллельно полу (10°), при 130° — 55°
+        thigh += [85 - (85 - (r.depth - 75)) * k, np.full(n_pause, 85.0)]
         if r.walk:
             hip += [np.full(len(t), 4.0), np.full(n_pause, 4.0)]
             feet += [foot_x + np.linspace(0, 1, len(t)), np.full(n_pause, foot_x + 1)]
@@ -59,6 +62,7 @@ def synthetic_session(
         "knee_angle": knee_angle,
         "hip_angle": knee_angle - 10,  # грубое приближение, в синтетике не важно
         "torso_lean": torso_lean,
+        "thigh_angle": np.concatenate(thigh) + rng.normal(0, noise, len(knee_angle)),
         "knee_vel": np.gradient(knee_angle) * fps,
         "heel_lift": heel_lift,
         "hip_y": np.concatenate(hip),

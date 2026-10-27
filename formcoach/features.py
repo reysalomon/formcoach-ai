@@ -54,6 +54,7 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
       knee_angle  — угол в колене (180 = нога прямая, ~70-90 = глубокий присед)
       hip_angle   — угол в тазобедренном суставе
       torso_lean  — наклон корпуса от вертикали
+      thigh_angle — угол бедра к полу (0 = параллельно полу) — по нему меряем глубину
       knee_vel    — скорость изменения угла колена, град/сек (<0 — опускается)
       heel_lift   — подъём пятки, доля голени (NaN — стопу плохо видно)
       hip_y       — высота таза, в длинах голени (ось y вниз: больше = ниже)
@@ -74,6 +75,10 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
     knee_angle = smooth(joint_angle(xy[:, hip], xy[:, knee], xy[:, ankle]), smooth_window)
     hip_angle = smooth(joint_angle(xy[:, sh], xy[:, hip], xy[:, knee]), smooth_window)
     torso_lean = smooth(lean_from_vertical(xy[:, sh], xy[:, hip]), smooth_window)
+    # Угол бедра к полу: 90 = стоит, 0 = бедро параллельно полу, <0 = ниже параллели.
+    # Нужны только таз и колено — они видны надёжнее, чем лодыжки и стопы.
+    thigh = xy[:, knee] - xy[:, hip]
+    thigh_angle = smooth(np.degrees(np.arctan2(thigh[:, 1], np.abs(thigh[:, 0]))), smooth_window)
     knee_vel = np.gradient(knee_angle) * seq.fps
 
     # Подъём пятки: насколько пятка выше носка, в долях длины голени
@@ -91,6 +96,7 @@ def squat_features(seq: P.PoseSequence, smooth_window: int = 5) -> dict[str, np.
         "knee_angle": knee_angle,
         "hip_angle": hip_angle,
         "torso_lean": torso_lean,
+        "thigh_angle": thigh_angle,
         "knee_vel": knee_vel,
         "heel_lift": heel_lift,
         "hip_y": smooth((xy[:, P.L_HIP, 1] + xy[:, P.R_HIP, 1]) / 2, smooth_window) / shin,

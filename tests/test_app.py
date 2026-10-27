@@ -27,5 +27,5 @@ def test_demo_mode_finds_errors():
 def test_relaxed_depth_rule_changes_result():
     at = AppTest.from_file("../app.py", default_timeout=60).run()
     at.sidebar.radio[0].set_value(DEMO).run()
-    at.sidebar.slider[3].set_value(140).run()  # порог глубины 140° — неглубокий присед теперь ок
+    at.sidebar.slider[3].set_value(60).run()  # порог глубины 60° — неглубокий присед теперь ок
     assert metrics(at)["Правильных"] == "4"

@@ -46,7 +46,7 @@ def test_dangerous_lean_is_danger_level():
 
 def test_rules_are_configurable():
     """Если ослабить порог глубины, неглубокий присед перестаёт быть ошибкой."""
-    a = run([SHALLOW], rules=SquatRules(min_depth_angle=140))
+    a = run([SHALLOW], rules=SquatRules(max_thigh_angle=60))
     assert a.reps[0].good
 
 

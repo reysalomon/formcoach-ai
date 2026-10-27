@@ -51,8 +51,10 @@ with st.sidebar:
 
     st.header("Правила тренера")
     rules = SquatRules(
-        min_depth_angle=st.slider("Глубина: колено не больше, °", 70, 140, 100),
-        max_torso_lean=st.slider("Макс. наклон корпуса, °", 20, 70, 45),
+        max_thigh_angle=st.slider(
+            "Глубина: бедро к полу не больше, °", -10, 70, 35, help="0° — бедро параллельно полу, 90° — стоишь прямо."
+        ),
+        max_torso_lean=st.slider("Макс. наклон корпуса, °", 15, 70, 30),
         max_heel_lift=st.slider("Макс. подъём пятки (доля голени)", 0.05, 0.50, 0.20, 0.01, help="«—» в таблице: стопу было плохо видно, пятки не оценивались."),
         min_rep_seconds=st.slider("Мин. длительность повторения, с", 0.3, 3.0, 1.0, 0.1),
     )
@@ -121,7 +123,6 @@ band_layer = alt.Chart(bands).mark_rect(opacity=0.22).encode(
 line = alt.Chart(df).mark_line(strokeWidth=2, color="#8a8985").encode(
     x="t:Q", y=alt.Y("angle:Q", title="Угол колена, °", scale=alt.Scale(domain=[40, 185]))
 )
-depth_rule = alt.Chart(pd.DataFrame({"y": [rules.min_depth_angle]})).mark_rule(strokeDash=[4, 4], color="#8a8985").encode(y="y:Q")
 hover = alt.selection_point(fields=["t"], nearest=True, on="pointerover", empty=False, clear="pointerout")
 points = alt.Chart(df).mark_circle(size=70, color="#8a8985").encode(
     x="t:Q", y="angle:Q",
@@ -132,8 +133,8 @@ rep_labels = alt.Chart(
     pd.DataFrame({"t": [r.bottom_frame / fps for r in a.reps], "y": [r.min_knee - 8 for r in a.reps], "label": [f"#{r.number}" for r in a.reps]})
 ).mark_text(fontWeight="bold").encode(x="t:Q", y="y:Q", text="label:N")
 
-st.altair_chart((band_layer + line + depth_rule + points + rep_labels).properties(height=320), width="stretch")
-st.caption(f"Пунктир — порог глубины ({rules.min_depth_angle}°). Ниже пунктира — присед достаточно глубокий.")
+st.altair_chart((band_layer + line + points + rep_labels).properties(height=320), width="stretch")
+st.caption("Цветные полосы — фазы, которые нашла HMM. #N — нижняя точка повторения N.")
 
 # ---------------- повторения ----------------
 left, right = st.columns([3, 2])
@@ -148,6 +149,7 @@ with left:
                     {
                         "#": r.number,
                         "Итог": "✅ хорошо" if r.good else "⚠️ " + ", ".join(ERROR_SHORT[e] for e in r.errors),
+                        "Бедро к полу, °": round(r.min_thigh),
                         "Мин. угол колена, °": round(r.min_knee),
                         "Макс. наклон, °": round(r.max_lean),
                         "Подъём пятки": "—" if np.isnan(r.max_heel) else round(r.max_heel, 2),
@@ -175,7 +177,7 @@ if video_path and a.reps:
         if frame is not None:
             cols[i % len(cols)].image(
                 draw_skeleton(frame, landmarks[r.bottom_frame]),
-                caption=f"#{r.number}: колено {r.min_knee:.0f}°, наклон {r.max_lean:.0f}°",
+                caption=f"#{r.number}: бедро {r.min_thigh:.0f}° к полу, наклон {r.max_lean:.0f}°",
             )
 
 # ---------------- объяснение алгоритмов ----------------
@@ -183,7 +185,7 @@ with st.expander("Как это работает: 3 AI-темы"):
     st.markdown(
         """
 **0. Датчик (не AI-тема проекта).** MediaPipe Pose находит 33 точки тела на каждом кадре.
-Из них мы считаем углы: колено (бедро–колено–лодыжка), наклон корпуса, подъём пятки.
+Из них мы считаем углы: колено (бедро–колено–лодыжка), бедро к полу (глубина), наклон корпуса, подъём пятки.
 
 **1. Неделя 7 — Hidden Markov Model.** Фазы ВЕРХ → СПУСК → НИЗ → ПОДЪЁМ скрыты, видим только угол и
 скорость колена. Каждой фазе соответствует гауссово распределение наблюдений, переходы — по кругу.
