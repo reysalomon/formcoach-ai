@@ -1,0 +1,40 @@
+{
+  "sessions": 300,
+  "count": {
+    "hmm": {
+      "exact": 1.0,
+      "mae": 0.0
+    },
+    "threshold": {
+      "exact": 0.4633333333333333,
+      "mae": 0.73
+    }
+  },
+  "errors": {
+    "shallow": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 228
+    },
+    "lean": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 236
+    },
+    "heels": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "support": 286
+    },
+    "fast": {
+      "precision": 0.987012987012987,
+      "recall": 1.0,
+      "f1": 0.9934640522875817,
+      "support": 228
+    }
+  },
+  "analysis_ms_per_session": 16.136800723332573
+}

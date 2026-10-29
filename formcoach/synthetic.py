@@ -56,13 +56,14 @@ def synthetic_session(
             feet += [np.full(len(t), foot_x), np.full(n_pause, foot_x)]
 
     knee_angle = smooth(np.concatenate(knee) + rng.normal(0, noise, sum(map(len, knee))), 5)
-    torso_lean = np.concatenate(lean) + rng.normal(0, noise, len(knee_angle))
+    # сглаживаем так же, как squat_features() делает с настоящим видео
+    torso_lean = smooth(np.concatenate(lean) + rng.normal(0, noise, len(knee_angle)), 5)
     heel_lift = np.concatenate(heel) + rng.normal(0, 0.005, len(knee_angle))
     return {
         "knee_angle": knee_angle,
         "hip_angle": knee_angle - 10,  # грубое приближение, в синтетике не важно
         "torso_lean": torso_lean,
-        "thigh_angle": np.concatenate(thigh) + rng.normal(0, noise, len(knee_angle)),
+        "thigh_angle": smooth(np.concatenate(thigh) + rng.normal(0, noise, len(knee_angle)), 5),
         "knee_vel": np.gradient(knee_angle) * fps,
         "heel_lift": heel_lift,
         "hip_y": np.concatenate(hip),
