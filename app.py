@@ -234,6 +234,10 @@ with tab_analysis:
     Обучена на открытом датасете (Binus University, Zenodo 17558630, ~3700 фото сбоку, ~6 человек).
     Кадры одного видео не попадают одновременно в обучение и проверку (GroupKFold по клипам).
     Если стопы не видны, используется запасная модель только по верху тела.
+
+    **4. Неделя 9 — нейросеть.** Свой многослойный перцептрон на NumPy (7 входов → 16 нейронов ReLU → softmax):
+    прямой проход, перекрёстная энтропия, обратное распространение ошибки и градиентный спуск с моментом
+    написаны вручную (`formcoach/mlp.py`); правильность градиентов проверена численно в тестах.
     """
         )
         report_path = ML_DATA / "classifier_report.json"
@@ -244,6 +248,21 @@ with tab_analysis:
                 pd.DataFrame(
                     [{"Модель": k, "F1 (новые клипы)": round(v["cv"]["f1_macro"], 3), "F1 (test)": round(v["test"]["f1_macro"], 3)}
                      for k, v in rep["results"].items()]
+                ),
+                hide_index=True,
+            )
+        retrain_path = ML_DATA / "retrain_report.json"
+        if retrain_path.exists():
+            rr = json.loads(retrain_path.read_text())
+            st.markdown(
+                f"**Дообучение на своих видео** ({rr['videos']} видео, {rr['reps']} повторений; "
+                "каждое видео проверяется моделью, которая его не видела):"
+            )
+            st.dataframe(
+                pd.DataFrame(
+                    [{"Модель": k, "Свои: точность до": round(v["before"]["accuracy"], 3),
+                      "после": round(v["after"]["accuracy"], 3), "Binus test F1 после": round(v["binus_test_after"]["f1_macro"], 3)}
+                     for k, v in rr["results"].items()]
                 ),
                 hide_index=True,
             )

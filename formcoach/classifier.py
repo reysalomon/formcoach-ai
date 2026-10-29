@@ -29,6 +29,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.tree import DecisionTreeClassifier, export_text
 
 from .features import FRAME_FEATURES, feet_visible, frame_features
+from .mlp import NumpyMLP
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = ROOT / "data" / "processed"
@@ -49,6 +50,7 @@ def make_models() -> dict:
         "Дерево решений (глубина 4)": DecisionTreeClassifier(max_depth=4, random_state=0),
         "Случайный лес": RandomForestClassifier(n_estimators=200, min_samples_leaf=3, random_state=0),
         "k ближайших соседей (k=15)": make_pipeline(StandardScaler(), KNeighborsClassifier(n_neighbors=15)),
+        "Своя нейросеть MLP (NumPy)": make_pipeline(StandardScaler(), NumpyMLP(hidden=16, epochs=100)),
     }
 
 
