@@ -198,7 +198,7 @@ input[type="range"] { width: 100%; margin: 12px 0 2px; accent-color: var(--accen
 .acc[open] summary::after { transform: rotate(45deg); }
 .acc p { color: var(--muted); margin: 12px 0 0; }
 .acc p b { color: var(--text); }
-.num { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--accent); font-family: var(--display); font-size: 14px; }
+.num { flex: none; width: 32px; height: 32px; border-radius: 10px; display: flex; align-items: baseline; justify-content: center; padding-top: 6px; background: var(--surface-2); color: var(--accent); font-family: var(--display); font-size: 14px; }
 .num::before { content: "W"; font-size: 9px; margin-right: 1px; opacity: .7; }
 .tbl { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13px; }
 .tbl th, .tbl td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
