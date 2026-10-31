@@ -5,3 +5,7 @@ pandas
 scikit-learn
 streamlit
 pytest
+fastapi
+uvicorn[standard]
+python-multipart
+httpx

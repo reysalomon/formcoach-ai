@@ -1,0 +1,8 @@
+.venv/
+.git/
+__pycache__/
+.pytest_cache/
+data/videos/
+data/external/
+docs/
+tests/

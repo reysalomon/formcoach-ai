@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0f12">
+  <meta name="description" content="FormCoach AI — проверка техники приседаний по видео с телефона">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FormCoach">
+  <title>FormCoach AI</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- ============ Экран 1: главная ============ -->
+  <main id="screen-home" class="screen active">
+    <header class="topbar">
+      <div class="brand"><span class="brand-dot"></span>FormCoach<span class="brand-ai">AI</span></div>
+      <button class="install-btn" id="btn-install" hidden>Установить</button>
+    </header>
+
+    <section class="hero">
+      <p class="eyebrow">Тренер в твоём телефоне</p>
+      <h1>Проверь технику<br><span class="accent">приседаний</span></h1>
+      <p class="lead">Сними видео сбоку — посчитаем повторения, найдём фазы движения и подскажем ошибки.</p>
+    </section>
+
+    <section class="actions">
+      <label class="btn btn-primary btn-xl">
+        <input id="input-camera" type="file" accept="video/*" capture="environment" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h8A2.5 2.5 0 0 1 16 7.5v1.2l3.6-2.1A1 1 0 0 1 21 7.5v9a1 1 0 0 1-1.4.9L16 15.3v1.2a2.5 2.5 0 0 1-2.5 2.5h-8A2.5 2.5 0 0 1 3 16.5z"/></svg>
+        Снять видео
+      </label>
+      <label class="btn btn-secondary">
+        <input id="input-gallery" type="file" accept="video/*" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 12.5V18h14v-2.2l-4-4.3-3.2 3.4-2.3-2.4zM8.5 10a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z"/></svg>
+        Из галереи
+      </label>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Как снимать</h2>
+      <ol class="tips">
+        <li><span><b>Сбоку</b>, телефон на уровне пояса</span></li>
+        <li><span><b>Всё тело в кадре</b> — от головы до стоп</span></li>
+        <li><span><b>2–3 метра</b> от камеры, хороший свет</span></li>
+        <li><span><b>5–10 повторений</b>, видео до 90 секунд</span></li>
+      </ol>
+    </section>
+
+    <section class="card">
+      <h2 class="card-title">Нет видео? Попробуй демо</h2>
+      <p class="muted">Виртуальный спортсмен сделает выбранные ошибки между правильными повторениями.</p>
+      <div class="chips" id="demo-chips">
+        <button class="chip on" data-err="shallow" aria-pressed="true">неглубоко</button>
+        <button class="chip on" data-err="lean" aria-pressed="true">наклон</button>
+        <button class="chip" data-err="heels" aria-pressed="false">пятки</button>
+        <button class="chip" data-err="fast" aria-pressed="false">быстро</button>
+      </div>
+      <button class="btn btn-ghost" id="btn-demo">Запустить демо</button>
+    </section>
+
+    <p class="footnote">Видео обрабатывается на сервере и сразу удаляется — мы его не храним.</p>
+  </main>
+
+  <!-- ============ Экран 2: результат ============ -->
+  <main id="screen-result" class="screen">
+    <header class="topbar">
+      <button class="icon-btn" data-go="home" aria-label="На главную">
+        <svg viewBox="0 0 24 24"><path d="M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z"/></svg>
+      </button>
+      <div class="topbar-title">Результат</div>
+      <span class="icon-btn-spacer"></span>
+    </header>
+
+    <div id="result-empty" class="empty">
+      <p>Здесь появится разбор твоего видео.</p>
+      <button class="btn btn-primary" data-go="home">Загрузить видео</button>
+    </div>
+
+    <div id="result" hidden>
+      <section class="score">
+        <div class="ring">
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="ring-bg" cx="60" cy="60" r="52"/>
+            <circle class="ring-fg" id="ring-fg" cx="60" cy="60" r="52"/>
+          </svg>
+          <div class="ring-text"><span id="score-good">0</span><small>из <span id="score-total">0</span></small></div>
+        </div>
+        <div class="score-side">
+          <p class="eyebrow" id="score-source">Твоё видео</p>
+          <h2 id="score-headline">—</h2>
+          <p class="muted" id="score-sub"></p>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div class="stat"><span id="st-reps">0</span><small>повторений</small></div>
+        <div class="stat"><span id="st-bad">0</span><small>с ошибками</small></div>
+        <div class="stat"><span id="st-time">0</span><small>секунд</small></div>
+      </section>
+
+      <section class="card" id="top-advice-card">
+        <h2 class="card-title">Над чем работать</h2>
+        <ul class="advice" id="top-advice"></ul>
+      </section>
+
+      <h2 class="section-title">Повторения</h2>
+      <section class="reps" id="reps"></section>
+
+      <section class="card">
+        <h2 class="card-title">Угол колена и фазы <span class="tag">HMM · Витерби</span></h2>
+        <div class="legend" id="legend"></div>
+        <div class="chart" id="chart"></div>
+        <p class="muted small">Цветные полосы — фазы, которые нашла скрытая марковская модель. Номера — нижняя точка каждого повторения.</p>
+      </section>
+
+      <section class="card">
+        <h2 class="card-title">Подсказки тренера <span class="tag">агент</span></h2>
+        <ul class="timeline" id="feedback"></ul>
+      </section>
+
+      <p class="muted small center pad" id="ml-note"></p>
+    </div>
+  </main>
+
+  <!-- ============ Экран 3: настройки ============ -->
+  <main id="screen-settings" class="screen">
+    <header class="topbar"><div class="topbar-title">Настройки</div></header>
+    <p class="muted pad">Параметры алгоритмов. Применяются к следующему анализу. Демо пересчитывается сразу.</p>
+    <form id="settings-form" onsubmit="return false">
+      <section class="card">
+        <h2 class="card-title">Правила тренера <span class="tag">агент</span></h2>
+        <div class="field" data-key="max_thigh_angle" data-min="-10" data-max="70" data-step="1" data-unit="°"
+             data-label="Глубина: бедро к полу не больше" data-help="0° — бедро параллельно полу, 90° — стоишь прямо"></div>
+        <div class="field" data-key="max_torso_lean" data-min="15" data-max="70" data-step="1" data-unit="°"
+             data-label="Макс. наклон корпуса"></div>
+        <div class="field" data-key="max_heel_lift" data-min="0.05" data-max="0.5" data-step="0.01" data-unit=""
+             data-label="Макс. подъём пятки" data-help="Доля длины голени"></div>
+        <div class="field" data-key="min_rep_seconds" data-min="0.3" data-max="3" data-step="0.1" data-unit=" с"
+             data-label="Мин. длительность повторения" data-help="Быстрее — значит «падение» вниз без контроля"></div>
+      </section>
+      <section class="card">
+        <h2 class="card-title">Фазы движения <span class="tag">HMM</span></h2>
+        <div class="field" data-key="top_angle" data-min="140" data-max="180" data-step="1" data-unit="°"
+             data-label="Угол колена стоя"></div>
+        <div class="field" data-key="bottom_angle" data-min="50" data-max="130" data-step="1" data-unit="°"
+             data-label="Угол колена внизу"></div>
+        <div class="field" data-key="stay_prob" data-min="0.5" data-max="0.99" data-step="0.01" data-unit=""
+             data-label="Вероятность остаться в фазе" data-help="Больше — HMM реже меняет фазу и меньше реагирует на шум"></div>
+      </section>
+      <button type="button" class="btn btn-ghost" id="btn-reset">Сбросить по умолчанию</button>
+    </form>
+  </main>
+
+  <!-- ============ Экран 4: как это работает ============ -->
+  <main id="screen-about" class="screen">
+    <header class="topbar"><div class="topbar-title">Как это работает</div></header>
+    <section class="pipeline" aria-label="Цепочка обработки">
+      <div class="pipe-step"><b>Видео</b><small>телефон</small></div>
+      <div class="pipe-step"><b>Поза</b><small>33 точки</small></div>
+      <div class="pipe-step hl"><b>HMM</b><small>фазы</small></div>
+      <div class="pipe-step hl"><b>Агент</b><small>ошибки</small></div>
+      <div class="pipe-step hl"><b>ML</b><small>проверка</small></div>
+    </section>
+
+    <details class="card acc" open>
+      <summary><span class="num">0</span>Датчик позы — MediaPipe</summary>
+      <p>Готовая нейросеть находит 33 точки тела на каждом кадре. Это не AI-тема проекта, а «сенсор». Из точек мы считаем углы: колено, бедро к полу (глубина), наклон корпуса, подъём пятки.</p>
+    </details>
+    <details class="card acc">
+      <summary><span class="num">7</span>Hidden Markov Model</summary>
+      <p>Фазы <b>ВЕРХ → СПУСК → НИЗ → ПОДЪЁМ</b> скрыты, видим только угол и скорость колена. У каждой фазы своё гауссово распределение наблюдений, переходы идут по кругу. Алгоритм <b>Витерби</b> (динамическое программирование) находит самую вероятную последовательность фаз, а <b>прямой алгоритм</b> — насколько видео вообще похоже на приседания.</p>
+      <div id="hmm-matrix"></div>
+    </details>
+    <details class="card acc">
+      <summary><span class="num">1</span>Интеллектуальный агент</summary>
+      <p>Тренер — рефлекторный агент с моделью мира. На каждом кадре он получает восприятие (фаза + углы), обновляет внутреннее состояние (минимальный угол, максимальный наклон в текущем повторении) и по правилам «условие → действие» выдаёт подсказки. Пороги правил меняются в настройках.</p>
+    </details>
+    <details class="card acc">
+      <summary><span class="num">8</span>Классическое ML</summary>
+      <p>По 7 признакам позы в нижней точке модель относит повторение к классу «правильно», «спина» или «пятки». Обучена на открытом датасете Binus University (Zenodo 17558630, ~3700 фото сбоку). Кадры одного клипа не попадают одновременно в обучение и проверку (GroupKFold).</p>
+      <div id="models-table"></div>
+    </details>
+    <details class="card acc">
+      <summary><span class="num">9</span>Своя нейросеть на NumPy</summary>
+      <p>Многослойный перцептрон 7 → 16 (ReLU) → softmax. Прямой проход, перекрёстная энтропия, обратное распространение ошибки и градиентный спуск с моментом написаны вручную; градиенты проверены численно в тестах.</p>
+    </details>
+    <p class="footnote">FormCoach AI · учебный проект по курсу AI Fundamentals · <a href="https://github.com/reysalomon/formcoach-ai">GitHub</a></p>
+  </main>
+
+  <!-- ============ Загрузка ============ -->
+  <div id="loading" class="overlay" hidden>
+    <div class="loader-card" role="status" aria-live="polite">
+      <div class="pulse" aria-hidden="true"></div>
+      <h2 id="load-title">Загружаю видео…</h2>
+      <div class="bar"><div class="bar-fill" id="load-bar"></div></div>
+      <ul class="steps" id="load-steps">
+        <li data-step="0">Загрузка на сервер</li>
+        <li data-step="1">Распознаю позу на каждом кадре</li>
+        <li data-step="2">Фазы (HMM), тренер и ML-модель</li>
+      </ul>
+      <p class="muted small">Обычно 20–60 секунд. Не закрывай страницу.</p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="alert" hidden></div>
+
+  <!-- ============ Нижнее меню ============ -->
+  <nav class="tabbar">
+    <button data-go="home" class="active"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 3 10v10a1 1 0 0 0 1 1h5v-6h6v6h5a1 1 0 0 0 1-1V10z"/></svg>Главная</button>
+    <button data-go="result"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10h3v10zm6.5 0V4h3v16zM17 20v-7h3v7z"/></svg>Результат</button>
+    <button data-go="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10a2.5 2.5 0 0 0 5 0h1V5h-1a2.5 2.5 0 0 0-5 0H4zm0 12h3a2.5 2.5 0 0 0 5 0h8v-2h-8a2.5 2.5 0 0 0-5 0H4zm0-6h9a2.5 2.5 0 0 0 5 0h2v-2h-2a2.5 2.5 0 0 0-5 0H4z"/></svg>Настройки</button>
+    <button data-go="about"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>О проекте</button>
+  </nav>
+
+  <script src="app.js"></script>
+</body>
+</html>
